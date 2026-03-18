@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Modal } from "@/shared/ui/Modal";
+import { SearchableSelect } from "@/shared/ui/SearchableSelect";
 import type { CreateInventoryInput } from "../types/inventory.types";
 
 interface InventoryFormModalProps {
@@ -75,37 +76,25 @@ export function InventoryFormModal({
         <div className="space-y-4">
           <div>
             <label className="mb-1 block text-sm text-gray-600">Producto</label>
-            <select
+            <SearchableSelect
+              options={products.map((p) => ({ value: p.id, label: p.name }))}
               value={productId}
-              onChange={(e) => setProductId(e.target.value)}
-              required
+              onChange={setProductId}
+              placeholder="Buscar producto..."
               disabled={productsLoading}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-emerald-500 focus:outline-none disabled:opacity-50"
-            >
-              <option value="">Seleccionar...</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+              allowClear={false}
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm text-gray-600">Ubicación</label>
-            <select
+            <SearchableSelect
+              options={locations.map((l) => ({ value: l.id, label: l.name }))}
               value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-              required
+              onChange={setLocationId}
+              placeholder="Buscar ubicación..."
               disabled={locationsLoading}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-emerald-500 focus:outline-none disabled:opacity-50"
-            >
-              <option value="">Seleccionar...</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
+              allowClear={false}
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm text-gray-600">Cantidad</label>

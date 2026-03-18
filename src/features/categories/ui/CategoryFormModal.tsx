@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Modal } from "@/shared/ui/Modal";
+import { SearchableSelect } from "@/shared/ui/SearchableSelect";
 import type {
   Category,
   CreateCategoryInput,
@@ -96,18 +97,15 @@ export function CategoryFormModal({
             <label className="mb-1 block text-sm text-gray-600">
               Categoría padre
             </label>
-            <select
+            <SearchableSelect
+              options={[
+                { value: "", label: "Sin categoría padre" },
+                ...parentOptions.map((c) => ({ value: c.id, label: c.name })),
+              ]}
               value={parentId}
-              onChange={(e) => setParentId(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-emerald-500 focus:outline-none"
-            >
-              <option value="">Sin categoría padre</option>
-              {parentOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+              onChange={setParentId}
+              placeholder="Buscar categoría padre..."
+            />
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
