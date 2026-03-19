@@ -26,6 +26,12 @@ export const productsApi = {
       body: JSON.stringify(data),
     }),
 
+  archive: (id: string): Promise<Product> =>
+    apiFetch<Product>(`/products/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived: true }),
+    }),
+
   uploadImage: (file: File): Promise<{ url: string }> => {
     const formData = new FormData();
     formData.append("image", file);

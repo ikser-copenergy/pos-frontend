@@ -5,6 +5,14 @@ export interface ProductImage {
   createdAt: string;
 }
 
+export interface ProductInventoryItem {
+  id: string;
+  productId: string;
+  locationId: string;
+  quantity: number;
+  location: { id: string; name: string };
+}
+
 export interface Product {
   id: string;
   tenantId: string;
@@ -18,9 +26,11 @@ export interface Product {
   costPrice?: number | null;
   salePrice?: number | null;
   trackStock: boolean;
+  archived: boolean;
   createdAt: string;
   updatedAt: string;
   images: ProductImage[];
+  inventory?: ProductInventoryItem[];
 }
 
 export interface CreateProductInput {
@@ -35,7 +45,9 @@ export interface CreateProductInput {
   costPrice?: number;
   salePrice?: number;
   trackStock?: boolean;
+  archived?: boolean;
   imageUrl?: string;
+  inventoryByLocation?: { locationId: string; quantity: number }[];
 }
 
 export interface UpdateProductInput {
@@ -49,5 +61,7 @@ export interface UpdateProductInput {
   costPrice?: number;
   salePrice?: number;
   trackStock?: boolean;
+  archived?: boolean;
   imageUrl?: string;
+  inventoryByLocation?: { locationId: string; quantity: number }[];
 }

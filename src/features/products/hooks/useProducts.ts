@@ -38,5 +38,11 @@ export function useProducts(tenantId?: string) {
     return updated;
   }, []);
 
-  return { products, loading, error, refetch: fetchProducts, create, update };
+  const archive = useCallback(async (id: string) => {
+    const updated = await productsApi.archive(id);
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+    return updated;
+  }, []);
+
+  return { products, loading, error, refetch: fetchProducts, create, update, archive };
 }

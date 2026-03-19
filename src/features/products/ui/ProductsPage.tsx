@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useProducts } from "../hooks/useProducts";
-import { useTenants } from "@/features/inventory/hooks/useInventory";
+import { useTenants, useLocations } from "@/features/inventory/hooks/useInventory";
 import { categoriesApi } from "../api/categoriesApi";
+import { productsApi } from "../api/productsApi";
 import { ProductFormModal } from "./ProductFormModal";
-import { IconEdit } from "@/shared/ui/icons";
+import { IconArchive, IconEdit } from "@/shared/ui/icons";
 import type { CreateProductInput, UpdateProductInput, Product } from "../types/product.types";
 
 export function ProductsPage() {
@@ -13,7 +14,8 @@ export function ProductsPage() {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
   const { tenants, loading: tenantsLoading } = useTenants();
-  const { products, loading, error, create, update } = useProducts(
+  const { locations } = useLocations(tenantId || undefined);
+  const { products, loading, error, create, update, archive } = useProducts(
     tenantId || undefined
   );
 
@@ -49,14 +51,20 @@ export function ProductsPage() {
     setShowModal(true);
   };
 
-  const openEdit = (product: Product) => {
-    setEditingProduct(product);
+  const openEdit = async (product: Product) => {
+    const fullProduct = await productsApi.getById(product.id);
+    setEditingProduct(fullProduct);
     setShowModal(true);
   };
 
   const closeModal = () => {
     setShowModal(false);
     setEditingProduct(null);
+  };
+
+  const handleArchive = async (product: Product) => {
+    if (!confirm(`¿Archivar el producto "${product.name}"? No se mostrará en la lista activa.`)) return;
+    await archive(product.id);
   };
 
   if (tenantsLoading && tenants.length === 0) {
@@ -105,6 +113,7 @@ export function ProductsPage() {
         onClose={closeModal}
         tenantId={selectedTenant}
         categories={categories}
+        locations={locations}
         product={editingProduct}
         onSubmit={handleSubmit}
       />
@@ -167,13 +176,22 @@ export function ProductsPage() {
                     {p.salePrice != null ? p.salePrice : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => openEdit(p)}
-                      className="rounded p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-600"
-                      title="Editar"
-                    >
-                      <IconEdit />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => openEdit(p)}
+                        className="rounded p-2 text-gray-500 hover:bg-emerald-50 hover:text-emerald-600"
+                        title="Editar"
+                      >
+                        <IconEdit />
+                      </button>
+                      <button
+                        onClick={() => handleArchive(p)}
+                        className="rounded p-2 text-gray-500 hover:bg-amber-50 hover:text-amber-600"
+                        title="Archivar"
+                      >
+                        <IconArchive />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

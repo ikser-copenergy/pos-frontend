@@ -9,6 +9,7 @@ interface ProductFormModalProps {
   onClose: () => void;
   tenantId: string;
   categories: { id: string; name: string }[];
+  locations: { id: string; name: string }[];
   product?: Product | null;
   onSubmit: (data: CreateProductInput | (UpdateProductInput & { id: string })) => Promise<void>;
 }
@@ -18,6 +19,7 @@ export function ProductFormModal({
   onClose,
   tenantId,
   categories,
+  locations,
   product,
   onSubmit,
 }: ProductFormModalProps) {
@@ -34,6 +36,7 @@ export function ProductFormModal({
   const [trackStock, setTrackStock] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [quantityByLocation, setQuantityByLocation] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (product) {
@@ -48,6 +51,12 @@ export function ProductFormModal({
       setSalePrice(product.salePrice != null ? String(product.salePrice) : "");
       setTrackStock(product.trackStock);
       setImagePreview(product.images?.[0]?.url ?? null);
+      const qty: Record<string, string> = {};
+      locations.forEach((loc) => {
+        const inv = product.inventory?.find((i) => i.locationId === loc.id);
+        qty[loc.id] = inv ? String(inv.quantity) : "0";
+      });
+      setQuantityByLocation(qty);
     } else {
       setName("");
       setDescription("");
@@ -61,8 +70,13 @@ export function ProductFormModal({
       setTrackStock(true);
       setImageFile(null);
       setImagePreview(null);
+      const qty: Record<string, string> = {};
+      locations.forEach((loc) => {
+        qty[loc.id] = "0";
+      });
+      setQuantityByLocation(qty);
     }
-  }, [product, isOpen]);
+  }, [product, isOpen, locations]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,6 +106,11 @@ export function ProductFormModal({
         imageUrl = url;
       }
       // Si es edición y no hay nueva imagen, no pasamos imageUrl (se mantienen las actuales)
+      const inventoryByLocation = locations.map((loc) => ({
+        locationId: loc.id,
+        quantity: parseFloat(quantityByLocation[loc.id] ?? "0") || 0,
+      }));
+
       if (isEdit && product) {
         await onSubmit({
           id: product.id,
@@ -106,6 +125,7 @@ export function ProductFormModal({
           salePrice: salePrice ? Number(salePrice) : undefined,
           trackStock,
           imageUrl,
+          inventoryByLocation,
         });
       } else {
         await onSubmit({
@@ -121,6 +141,7 @@ export function ProductFormModal({
           salePrice: salePrice ? Number(salePrice) : undefined,
           trackStock,
           imageUrl,
+          inventoryByLocation,
         });
       }
       onClose();
@@ -256,6 +277,35 @@ export function ProductFormModal({
               Controlar inventario
             </label>
           </div>
+          {locations.length > 0 && (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-600">
+                Cantidad por sucursal
+              </label>
+              <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4">
+                {locations.map((loc) => (
+                  <div key={loc.id} className="flex items-center gap-3">
+                    <span className="min-w-[120px] text-sm text-gray-700">
+                      {loc.name}
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={quantityByLocation[loc.id] ?? "0"}
+                      onChange={(e) =>
+                        setQuantityByLocation((prev) => ({
+                          ...prev,
+                          [loc.id]: e.target.value,
+                        }))
+                      }
+                      className="w-24 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-sm text-gray-600">Imagen (opcional)</label>
             <input
