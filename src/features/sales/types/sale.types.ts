@@ -30,6 +30,16 @@ export interface Payment {
   reference?: string | null;
 }
 
+export interface SaleInvoice {
+  id: string;
+  number: string;
+  customerName?: string | null;
+  customerRTN?: string | null;
+  total: number;
+  tax?: number | null;
+  createdAt: string;
+}
+
 export interface Sale {
   id: string;
   tenantId: string;
@@ -46,6 +56,7 @@ export interface Sale {
   customer?: { id: string; name: string } | null;
   location?: { id: string; name: string };
   user?: { id: string; name: string };
+  invoice?: SaleInvoice | null;
 }
 
 export interface CreateSaleInput {

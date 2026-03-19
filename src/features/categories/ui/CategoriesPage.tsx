@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useAuth } from "@/core/auth/AuthContext";
 import { useCategories } from "../hooks/useCategories";
-import { useTenants } from "@/features/inventory/hooks/useInventory";
 import { CategoryFormModal } from "./CategoryFormModal";
 import { IconEdit, IconTrash } from "@/shared/ui/icons";
 import type {
@@ -16,20 +16,14 @@ function getParentName(categories: Category[], parentId: string | null | undefin
 }
 
 export function CategoriesPage() {
-  const [tenantId, setTenantId] = useState<string>("");
+  const { user } = useAuth();
+  const tenantId = user?.tenantId ?? "";
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
-  const { tenants, loading: tenantsLoading } = useTenants();
   const { categories, loading, error, create, update, remove } = useCategories(
     tenantId || undefined
   );
-
-  useEffect(() => {
-    if (!tenantId && tenants[0]) setTenantId(tenants[0].id);
-  }, [tenants, tenantId]);
-
-  const selectedTenant = tenantId || tenants[0]?.id;
 
   const handleSubmit = async (
     data: CreateCategoryInput | (UpdateCategoryInput & { id: string })
@@ -50,39 +44,10 @@ export function CategoriesPage() {
     }
   };
 
-  if (tenantsLoading && tenants.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-gray-500">Cargando...</p>
-      </div>
-    );
-  }
-
-  if (tenants.length === 0) {
-    return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
-        <p className="font-medium">No hay tenants configurados</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-600">Tenant:</label>
-          <select
-            value={selectedTenant}
-            onChange={(e) => setTenantId(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          >
-            {tenants.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <h2 className="text-xl font-semibold text-gray-900">Categorías</h2>
         <button
           onClick={() => {
             setEditingCategory(null);
@@ -100,7 +65,7 @@ export function CategoriesPage() {
           setShowModal(false);
           setEditingCategory(null);
         }}
-        tenantId={selectedTenant}
+        tenantId={tenantId}
         categories={categories}
         category={editingCategory}
         onSubmit={handleSubmit}

@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
-import { useTenants, useLocations } from "@/features/inventory/hooks/useInventory";
+import { useAuth } from "@/core/auth/AuthContext";
+import { useLocations } from "@/features/inventory/hooks/useInventory";
 import { productsApi } from "@/features/products/api/productsApi";
 import { customersApi } from "../api/customersApi";
-import { usersApi } from "../api/usersApi";
 import { SearchableSelect } from "@/shared/ui/SearchableSelect";
 import { useSales } from "../hooks/useSales";
+import { InvoiceModal } from "./InvoiceModal";
 import type { Product } from "@/features/products/types/product.types";
 import type { Customer } from "../api/customersApi";
-import type { User } from "../api/usersApi";
+import type { Sale } from "../types/sale.types";
+import type { Invoice } from "../types/invoice.types";
 
 interface CartItem {
   productId: string;
@@ -18,9 +20,9 @@ interface CartItem {
 }
 
 export function SalesPage() {
-  const [tenantId, setTenantId] = useState("");
+  const { user } = useAuth();
+  const tenantId = user?.tenantId ?? "";
   const [locationId, setLocationId] = useState("");
-  const [userId, setUserId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -29,35 +31,23 @@ export function SalesPage() {
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "TRANSFER" | "CARD">("CASH");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [invoiceSale, setInvoiceSale] = useState<Sale | null>(null);
 
-  const { tenants, loading: tenantsLoading } = useTenants();
   const { locations } = useLocations(tenantId || undefined);
-  const { sales, loading: salesLoading, create } = useSales(tenantId || undefined);
+  const { sales, loading: salesLoading, create, updateSaleInvoice } = useSales(tenantId || undefined);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-
-  const selectedTenant = tenantId || tenants[0]?.id;
-
-  useEffect(() => {
-    if (!tenantId && tenants[0]) setTenantId(tenants[0].id);
-  }, [tenants, tenantId]);
 
   useEffect(() => {
     if (tenantId) {
       productsApi.getAll(tenantId).then(setProducts);
       customersApi.getAll(tenantId).then(setCustomers);
-      usersApi.getAll(tenantId).then(setUsers);
     }
   }, [tenantId]);
 
   useEffect(() => {
     if (locations.length && !locationId) setLocationId(locations[0].id);
   }, [locations, locationId]);
-
-  useEffect(() => {
-    if (users.length && !userId) setUserId(users[0].id);
-  }, [users, userId]);
 
   const activeProducts = products.filter((p) => !p.archived);
   const productOptions = [
@@ -105,7 +95,7 @@ export function SalesPage() {
   const canSubmit =
     tenantId &&
     locationId &&
-    userId &&
+    user &&
     cart.length > 0 &&
     total > 0;
 
@@ -114,10 +104,10 @@ export function SalesPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await create({
+      const newSale = await create({
         tenantId,
         locationId,
-        userId,
+        userId: user!.id,
         customerId: customerId || undefined,
         total,
         discount: discountVal || undefined,
@@ -131,6 +121,7 @@ export function SalesPage() {
       });
       setCart([]);
       setDiscount("0");
+      setInvoiceSale(newSale);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al registrar venta");
     } finally {
@@ -138,39 +129,28 @@ export function SalesPage() {
     }
   };
 
-  if (tenantsLoading && tenants.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-gray-500">Cargando...</p>
-      </div>
-    );
-  }
+  const handleInvoiceCreated = (saleId: string, invoice: Invoice) => {
+    updateSaleInvoice(saleId, {
+      id: invoice.id,
+      number: invoice.number,
+      customerName: invoice.customerName,
+      customerRTN: invoice.customerRTN,
+      total: invoice.total,
+      tax: invoice.tax,
+      createdAt: invoice.createdAt,
+    });
+  };
 
-  if (tenants.length === 0) {
-    return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
-        <p className="font-medium">No hay tenants configurados</p>
-      </div>
-    );
-  }
+  if (!user) return null;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-xl font-semibold text-gray-900">Nueva venta</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm text-gray-600">Tenant:</label>
-          <select
-            value={selectedTenant}
-            onChange={(e) => setTenantId(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
-          >
-            {tenants.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span>{user.tenantName}</span>
+          <span>&middot;</span>
+          <span>{user.name}</span>
         </div>
       </div>
 
@@ -179,22 +159,12 @@ export function SalesPage() {
           <h3 className="mb-4 font-medium text-gray-900">Configuración</h3>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm text-gray-600">Ubicación</label>
+              <label className="mb-1 block text-sm text-gray-600">Ubicacion</label>
               <SearchableSelect
                 options={locations.map((l) => ({ value: l.id, label: l.name }))}
                 value={locationId}
                 onChange={setLocationId}
                 placeholder="Seleccionar ubicación..."
-                allowClear={false}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-gray-600">Cajero</label>
-              <SearchableSelect
-                options={users.map((u) => ({ value: u.id, label: u.name }))}
-                value={userId}
-                onChange={setUserId}
-                placeholder="Seleccionar cajero..."
                 allowClear={false}
               />
             </div>
@@ -337,6 +307,7 @@ export function SalesPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-600">Ubicación</th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-600">Cliente</th>
                   <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-600">Total</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-600">Factura</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -350,6 +321,24 @@ export function SalesPage() {
                     <td className="px-4 py-3 text-right font-medium text-gray-900">
                       L{sale.total.toFixed(2)}
                     </td>
+                    <td className="px-4 py-3 text-center">
+                      {sale.invoice ? (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                          {sale.invoice.number}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setInvoiceSale(sale)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                        >
+                          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Facturar
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -357,6 +346,15 @@ export function SalesPage() {
           </div>
         )}
       </div>
+
+      {invoiceSale && (
+        <InvoiceModal
+          isOpen={!!invoiceSale}
+          onClose={() => setInvoiceSale(null)}
+          sale={invoiceSale}
+          onInvoiceCreated={handleInvoiceCreated}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { salesApi } from "../api/salesApi";
-import type { Sale, CreateSaleInput } from "../types/sale.types";
+import type { Sale, CreateSaleInput, SaleInvoice } from "../types/sale.types";
 
 export function useSales(tenantId?: string) {
   const [sales, setSales] = useState<Sale[]>([]);
@@ -24,11 +24,17 @@ export function useSales(tenantId?: string) {
     fetchSales();
   }, [fetchSales]);
 
-  const create = useCallback(async (data: CreateSaleInput) => {
+  const create = useCallback(async (data: CreateSaleInput): Promise<Sale> => {
     const created = await salesApi.create(data);
     setSales((prev) => [created, ...prev]);
     return created;
   }, []);
 
-  return { sales, loading, error, refetch: fetchSales, create };
+  const updateSaleInvoice = useCallback((saleId: string, invoice: SaleInvoice) => {
+    setSales((prev) =>
+      prev.map((s) => (s.id === saleId ? { ...s, invoice } : s))
+    );
+  }, []);
+
+  return { sales, loading, error, refetch: fetchSales, create, updateSaleInvoice };
 }

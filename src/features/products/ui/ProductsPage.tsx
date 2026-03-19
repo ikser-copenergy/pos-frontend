@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "@/core/auth/AuthContext";
 import { useProducts } from "../hooks/useProducts";
-import { useTenants, useLocations } from "@/features/inventory/hooks/useInventory";
+import { useLocations } from "@/features/inventory/hooks/useInventory";
 import { categoriesApi } from "../api/categoriesApi";
 import { productsApi } from "../api/productsApi";
 import { ProductFormModal } from "./ProductFormModal";
@@ -8,20 +9,16 @@ import { IconArchive, IconEdit } from "@/shared/ui/icons";
 import type { CreateProductInput, UpdateProductInput, Product } from "../types/product.types";
 
 export function ProductsPage() {
-  const [tenantId, setTenantId] = useState<string>("");
+  const { user } = useAuth();
+  const tenantId = user?.tenantId ?? "";
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
-  const { tenants, loading: tenantsLoading } = useTenants();
   const { locations } = useLocations(tenantId || undefined);
   const { products, loading, error, create, update, archive } = useProducts(
     tenantId || undefined
   );
-
-  useEffect(() => {
-    if (!tenantId && tenants[0]) setTenantId(tenants[0].id);
-  }, [tenants, tenantId]);
 
   useEffect(() => {
     if (tenantId) {
@@ -30,8 +27,6 @@ export function ProductsPage() {
       );
     }
   }, [tenantId]);
-
-  const selectedTenant = tenantId || tenants[0]?.id;
 
   const handleSubmit = async (
     data: CreateProductInput | (UpdateProductInput & { id: string })
@@ -67,39 +62,10 @@ export function ProductsPage() {
     await archive(product.id);
   };
 
-  if (tenantsLoading && tenants.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-gray-500">Cargando...</p>
-      </div>
-    );
-  }
-
-  if (tenants.length === 0) {
-    return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
-        <p className="font-medium">No hay tenants configurados</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <label className="text-sm text-gray-600">Tenant:</label>
-          <select
-            value={selectedTenant}
-            onChange={(e) => setTenantId(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          >
-            {tenants.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <h2 className="text-xl font-semibold text-gray-900">Productos</h2>
         <button
           onClick={openCreate}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
@@ -111,7 +77,7 @@ export function ProductsPage() {
       <ProductFormModal
         isOpen={showModal}
         onClose={closeModal}
-        tenantId={selectedTenant}
+        tenantId={tenantId}
         categories={categories}
         locations={locations}
         product={editingProduct}
