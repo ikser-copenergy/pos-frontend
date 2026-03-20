@@ -3,6 +3,7 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useCategories } from "../hooks/useCategories";
 import { CategoryFormModal } from "./CategoryFormModal";
 import { IconEdit, IconTrash } from "@/shared/ui/icons";
+import { ConfirmModal } from "@/shared/ui/ConfirmModal";
 import type {
   Category,
   CreateCategoryInput,
@@ -20,6 +21,7 @@ export function CategoriesPage() {
   const tenantId = user?.tenantId ?? "";
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
 
   const { categories, loading, error, create, update, remove } = useCategories(
     tenantId || undefined
@@ -38,10 +40,14 @@ export function CategoriesPage() {
     }
   };
 
-  const handleDelete = async (cat: Category) => {
-    if (confirm(`¿Eliminar la categoría "${cat.name}"?`)) {
-      await remove(cat.id);
-    }
+  const handleDeleteClick = (cat: Category) => {
+    setDeletingCategory(cat);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingCategory) return;
+    await remove(deletingCategory.id);
+    setDeletingCategory(null);
   };
 
   return (
@@ -69,6 +75,20 @@ export function CategoriesPage() {
         categories={categories}
         category={editingCategory}
         onSubmit={handleSubmit}
+      />
+
+      <ConfirmModal
+        isOpen={!!deletingCategory}
+        onClose={() => setDeletingCategory(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Eliminar categoría"
+        message={
+          deletingCategory
+            ? `¿Eliminar la categoría "${deletingCategory.name}"?`
+            : ""
+        }
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
       />
 
       {error && (
@@ -123,7 +143,7 @@ export function CategoriesPage() {
                         <IconEdit />
                       </button>
                       <button
-                        onClick={() => handleDelete(cat)}
+                        onClick={() => handleDeleteClick(cat)}
                         className="rounded p-2 text-gray-500 hover:bg-red-50 hover:text-red-600"
                         title="Eliminar"
                       >

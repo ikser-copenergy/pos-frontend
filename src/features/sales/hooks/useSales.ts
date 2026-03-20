@@ -36,5 +36,11 @@ export function useSales(tenantId?: string) {
     );
   }, []);
 
-  return { sales, loading, error, refetch: fetchSales, create, updateSaleInvoice };
+  const addPayment = useCallback(async (saleId: string, data: { method: "CASH" | "TRANSFER" | "CARD"; amount: number; reference?: string }): Promise<Sale> => {
+    const updated = await salesApi.addPayment(saleId, data);
+    setSales((prev) => prev.map((s) => (s.id === saleId ? updated : s)));
+    return updated;
+  }, []);
+
+  return { sales, loading, error, refetch: fetchSales, create, updateSaleInvoice, addPayment };
 }

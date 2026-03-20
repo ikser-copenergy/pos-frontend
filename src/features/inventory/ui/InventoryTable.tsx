@@ -5,7 +5,7 @@ interface InventoryTableProps {
   items: InventoryItem[];
   loading: boolean;
   onEdit: (item: InventoryItem) => void;
-  onDelete: (id: string) => void;
+  onDelete: (item: InventoryItem) => void;
 }
 
 export function InventoryTable({
@@ -71,7 +71,7 @@ export function InventoryTable({
                     <IconEdit />
                   </button>
                   <button
-                    onClick={() => onDelete(item.id)}
+                    onClick={() => onDelete(item)}
                     className="rounded p-2 text-gray-500 hover:bg-red-50 hover:text-red-600"
                     title="Eliminar"
                   >

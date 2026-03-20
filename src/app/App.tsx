@@ -1,12 +1,14 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/core/auth/AuthContext";
 import { LoginPage } from "@/features/auth/ui/LoginPage";
 import { Sidebar } from "@/shared/ui/Sidebar";
 import { ProductsPage } from "@/features/products/ui/ProductsPage";
 import { CategoriesPage } from "@/features/categories/ui/CategoriesPage";
-import { LocationsPage } from "@/features/locations/ui/LocationsPage";
 import { InventoryPage } from "@/features/inventory/ui/InventoryPage";
-import { SalesPage } from "@/features/sales/ui/SalesPage";
+import { SalesHistoryPage } from "@/features/sales/ui/SalesHistoryPage";
+import { NewSalePage } from "@/features/sales/ui/NewSalePage";
+import { CustomersPage } from "@/features/customers/ui/CustomersPage";
+import { SettingsPage } from "@/features/settings/ui/SettingsPage";
 
 function AppLayout() {
   const { user, logout } = useAuth();
@@ -30,15 +32,7 @@ function AppLayout() {
         </div>
       </header>
       <main className="p-6">
-        <Routes>
-          <Route path="/" element={<Navigate to="/productos" replace />} />
-          <Route path="/productos" element={<ProductsPage />} />
-          <Route path="/categorias" element={<CategoriesPage />} />
-          <Route path="/ubicaciones" element={<LocationsPage />} />
-          <Route path="/inventario" element={<InventoryPage />} />
-          <Route path="/ventas" element={<SalesPage />} />
-          <Route path="*" element={<Navigate to="/productos" replace />} />
-        </Routes>
+        <Outlet />
       </main>
     </div>
   );
@@ -59,12 +53,22 @@ export default function App() {
     <Routes>
       <Route
         path="/login"
-        element={user ? <Navigate to="/" replace /> : <LoginPage />}
+        element={user ? <Navigate to="/productos" replace /> : <LoginPage />}
       />
       <Route
-        path="/*"
+        path="/"
         element={user ? <AppLayout /> : <Navigate to="/login" replace />}
-      />
+      >
+        <Route index element={<Navigate to="/productos" replace />} />
+        <Route path="productos" element={<ProductsPage />} />
+        <Route path="categorias" element={<CategoriesPage />} />
+        <Route path="clientes" element={<CustomersPage />} />
+        <Route path="inventario" element={<InventoryPage />} />
+        <Route path="ventas" element={<SalesHistoryPage />} />
+        <Route path="ventas/nueva" element={<NewSalePage />} />
+        <Route path="configuraciones" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/productos" replace />} />
+      </Route>
     </Routes>
   );
 }

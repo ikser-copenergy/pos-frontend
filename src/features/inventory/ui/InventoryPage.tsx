@@ -4,6 +4,7 @@ import { useInventory, useProducts, useLocations } from "../hooks/useInventory";
 import { InventoryTable } from "./InventoryTable";
 import { InventoryFormModal } from "./InventoryFormModal";
 import { EditInventoryModal } from "./EditInventoryModal";
+import { ConfirmModal } from "@/shared/ui/ConfirmModal";
 import type { CreateInventoryInput, InventoryItem } from "../types/inventory.types";
 
 export function InventoryPage() {
@@ -11,6 +12,7 @@ export function InventoryPage() {
   const tenantId = user?.tenantId ?? "";
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
+  const [deletingItem, setDeletingItem] = useState<InventoryItem | null>(null);
 
   const { items, loading, error, create, update, remove } =
     useInventory(tenantId || undefined);
@@ -32,10 +34,14 @@ export function InventoryPage() {
     setEditingItem(null);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm("¿Eliminar este registro de inventario?")) {
-      await remove(id);
-    }
+  const handleDeleteClick = (item: InventoryItem) => {
+    setDeletingItem(item);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingItem) return;
+    await remove(deletingItem.id);
+    setDeletingItem(null);
   };
 
   return (
@@ -78,11 +84,25 @@ export function InventoryPage() {
         </div>
       )}
 
+      <ConfirmModal
+        isOpen={!!deletingItem}
+        onClose={() => setDeletingItem(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Eliminar registro de inventario"
+        message={
+          deletingItem
+            ? `¿Eliminar el registro de ${deletingItem.product.name} en ${deletingItem.location.name}?`
+            : ""
+        }
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+      />
+
       <InventoryTable
         items={items}
         loading={loading}
         onEdit={setEditingItem}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
       />
     </div>
   );

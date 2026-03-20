@@ -6,6 +6,7 @@ import { categoriesApi } from "../api/categoriesApi";
 import { productsApi } from "../api/productsApi";
 import { ProductFormModal } from "./ProductFormModal";
 import { IconArchive, IconEdit } from "@/shared/ui/icons";
+import { ConfirmModal } from "@/shared/ui/ConfirmModal";
 import type { CreateProductInput, UpdateProductInput, Product } from "../types/product.types";
 
 export function ProductsPage() {
@@ -13,6 +14,7 @@ export function ProductsPage() {
   const tenantId = user?.tenantId ?? "";
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [archivingProduct, setArchivingProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
   const { locations } = useLocations(tenantId || undefined);
@@ -57,9 +59,14 @@ export function ProductsPage() {
     setEditingProduct(null);
   };
 
-  const handleArchive = async (product: Product) => {
-    if (!confirm(`¿Archivar el producto "${product.name}"? No se mostrará en la lista activa.`)) return;
-    await archive(product.id);
+  const handleArchiveClick = (product: Product) => {
+    setArchivingProduct(product);
+  };
+
+  const handleArchiveConfirm = async () => {
+    if (!archivingProduct) return;
+    await archive(archivingProduct.id);
+    setArchivingProduct(null);
   };
 
   return (
@@ -82,6 +89,21 @@ export function ProductsPage() {
         locations={locations}
         product={editingProduct}
         onSubmit={handleSubmit}
+      />
+
+      <ConfirmModal
+        isOpen={!!archivingProduct}
+        onClose={() => setArchivingProduct(null)}
+        onConfirm={handleArchiveConfirm}
+        title="Archivar producto"
+        message={
+          archivingProduct
+            ? `¿Archivar el producto "${archivingProduct.name}"? No se mostrará en la lista activa.`
+            : ""
+        }
+        confirmLabel="Archivar"
+        cancelLabel="Cancelar"
+        variant="default"
       />
 
       {error && (
@@ -151,7 +173,7 @@ export function ProductsPage() {
                         <IconEdit />
                       </button>
                       <button
-                        onClick={() => handleArchive(p)}
+                        onClick={() => handleArchiveClick(p)}
                         className="rounded p-2 text-gray-500 hover:bg-amber-50 hover:text-amber-600"
                         title="Archivar"
                       >

@@ -15,4 +15,13 @@ export const salesApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  addPayment: (
+    saleId: string,
+    data: { method: "CASH" | "TRANSFER" | "CARD"; amount: number; reference?: string }
+  ): Promise<Sale> =>
+    apiFetch<Sale>(`/sales/${saleId}/payments`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };

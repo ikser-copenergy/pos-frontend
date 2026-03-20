@@ -68,5 +68,5 @@ export interface CreateSaleInput {
   tax?: number;
   discount?: number;
   items: { productId: string; variantId?: string; quantity: number; unitPrice: number; total: number }[];
-  payments: { method: "CASH" | "TRANSFER" | "CARD"; amount: number; reference?: string }[];
+  payments?: { method: "CASH" | "TRANSFER" | "CARD"; amount: number; reference?: string }[];
 }

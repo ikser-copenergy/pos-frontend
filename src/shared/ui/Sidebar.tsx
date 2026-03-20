@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
-import { IconMenu, IconBox, IconCart, IconPackage, IconMapPin, IconFolder } from "./icons";
+import { IconMenu, IconBox, IconCart, IconPlus, IconPackage, IconFolder, IconUsers, IconSettings } from "./icons";
 
 const menuItems = [
   { to: "/productos", label: "Productos", icon: IconPackage },
   { to: "/categorias", label: "Categorías", icon: IconFolder },
-  { to: "/ubicaciones", label: "Ubicaciones", icon: IconMapPin },
+  { to: "/clientes", label: "Clientes", icon: IconUsers },
   { to: "/inventario", label: "Inventario", icon: IconBox },
   { to: "/ventas", label: "Ventas", icon: IconCart },
+  { to: "/ventas/nueva", label: "Nueva venta", icon: IconPlus },
+  { to: "/configuraciones", label: "Configuraciones", icon: IconSettings },
 ];
 
 export function Sidebar() {

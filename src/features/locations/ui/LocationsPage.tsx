@@ -3,6 +3,7 @@ import { useAuth } from "@/core/auth/AuthContext";
 import { useLocations } from "../hooks/useLocations";
 import { LocationFormModal } from "./LocationFormModal";
 import { IconEdit, IconTrash } from "@/shared/ui/icons";
+import { ConfirmModal } from "@/shared/ui/ConfirmModal";
 import type {
   Location,
   CreateLocationInput,
@@ -14,6 +15,7 @@ export function LocationsPage() {
   const tenantId = user?.tenantId ?? "";
   const [showModal, setShowModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [deletingLocation, setDeletingLocation] = useState<Location | null>(null);
 
   const { locations, loading, error, create, update, remove } = useLocations(
     tenantId || undefined
@@ -32,10 +34,14 @@ export function LocationsPage() {
     }
   };
 
-  const handleDelete = async (loc: Location) => {
-    if (confirm(`¿Eliminar la ubicación "${loc.name}"?`)) {
-      await remove(loc.id);
-    }
+  const handleDeleteClick = (loc: Location) => {
+    setDeletingLocation(loc);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingLocation) return;
+    await remove(deletingLocation.id);
+    setDeletingLocation(null);
   };
 
   return (
@@ -62,6 +68,20 @@ export function LocationsPage() {
         tenantId={tenantId}
         location={editingLocation}
         onSubmit={handleSubmit}
+      />
+
+      <ConfirmModal
+        isOpen={!!deletingLocation}
+        onClose={() => setDeletingLocation(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Eliminar ubicación"
+        message={
+          deletingLocation
+            ? `¿Eliminar la ubicación "${deletingLocation.name}"?`
+            : ""
+        }
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
       />
 
       {error && (
@@ -116,7 +136,7 @@ export function LocationsPage() {
                         <IconEdit />
                       </button>
                       <button
-                        onClick={() => handleDelete(loc)}
+                        onClick={() => handleDeleteClick(loc)}
                         className="rounded p-2 text-gray-500 hover:bg-red-50 hover:text-red-600"
                         title="Eliminar"
                       >

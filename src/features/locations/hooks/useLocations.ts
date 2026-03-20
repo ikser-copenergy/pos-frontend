@@ -36,9 +36,15 @@ export function useLocations(tenantId?: string) {
 
   const update = useCallback(async (id: string, data: UpdateLocationInput) => {
     const updated = await locationsApi.update(id, data);
-    setLocations((prev) =>
-      prev.map((loc) => (loc.id === id ? updated : loc))
-    );
+    setLocations((prev) => {
+      const next = prev.map((loc) => (loc.id === id ? updated : loc));
+      if (data.isMain) {
+        return next.map((loc) =>
+          loc.id === id ? loc : { ...loc, isMain: false }
+        );
+      }
+      return next;
+    });
     return updated;
   }, []);
 
