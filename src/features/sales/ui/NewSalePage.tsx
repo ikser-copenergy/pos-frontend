@@ -90,8 +90,14 @@ export function NewSalePage() {
   }, [tenantId, debouncedProductSearchTerm]);
 
   useEffect(() => {
-    if (locations.length && !locationId) setLocationId(locations[0].id);
-  }, [locations, locationId]);
+    if (!locations.length || locationId) return;
+    const preferred =
+      user?.defaultLocationId &&
+      locations.some((l) => l.id === user.defaultLocationId)
+        ? user.defaultLocationId
+        : locations[0].id;
+    setLocationId(preferred);
+  }, [locations, locationId, user?.defaultLocationId]);
 
   const activeProducts = products.filter((p) => !p.archived);
   const productOptions = [

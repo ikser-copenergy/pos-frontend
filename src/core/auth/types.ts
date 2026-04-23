@@ -6,6 +6,8 @@ export interface AuthUser {
   tenantId: string;
   tenantName: string;
   tenantLogoUrl?: string | null;
+  defaultLocationId: string;
+  defaultLocationName: string;
 }
 
 export interface LoginResponse {

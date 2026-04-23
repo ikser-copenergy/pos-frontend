@@ -27,7 +27,9 @@ export interface Product {
   costPrice?: number | null;
   salePrice?: number | null;
   trackStock: boolean;
+  allowDecimalInventory: boolean;
   archived: boolean;
+  expiresAt?: string | null;
   createdAt: string;
   updatedAt: string;
   images: ProductImage[];
@@ -48,7 +50,9 @@ export interface CreateProductInput {
   costPrice?: number;
   salePrice?: number;
   trackStock?: boolean;
+  allowDecimalInventory?: boolean;
   archived?: boolean;
+  expiresAt?: string | null;
   imageUrl?: string;
   inventoryByLocation?: { locationId: string; quantity: number }[];
 }
@@ -65,7 +69,9 @@ export interface UpdateProductInput {
   costPrice?: number;
   salePrice?: number;
   trackStock?: boolean;
+  allowDecimalInventory?: boolean;
   archived?: boolean;
+  expiresAt?: string | null;
   imageUrl?: string;
   inventoryByLocation?: { locationId: string; quantity: number }[];
 }

@@ -1,9 +1,85 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { Modal } from "@/shared/ui/Modal";
 import { ImageCropModal, PRODUCT_IMAGE_MAX_PIXELS } from "@/shared/ui/ImageCropModal";
 import { SearchableSelect } from "@/shared/ui/SearchableSelect";
 import { productsApi } from "../api/productsApi";
 import type { CreateProductInput, Product, UpdateProductInput } from "../types/product.types";
+
+const HELP_TOOLTIP_W = 256;
+
+function toYmdFromIso(iso: string | undefined | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
+/** Ayuda con “?” discreto: tooltip fijo (portal) sin mover el formulario. Solo este subárbol se repinta al abrir/cerrar. */
+function FieldHelp({ text }: { text: string }) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) {
+      setRect(null);
+      return;
+    }
+    setRect(btnRef.current.getBoundingClientRect());
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const onScroll = () => {
+      if (btnRef.current) setRect(btnRef.current.getBoundingClientRect());
+    };
+    const onReposition = () => onScroll();
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onReposition);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onReposition);
+    };
+  }, [open]);
+
+  const top = rect ? rect.bottom + 6 : 0;
+  const left = rect
+    ? Math.min(rect.left, window.innerWidth - HELP_TOOLTIP_W - 8)
+    : 0;
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className="p-0 text-sm font-medium text-gray-400 antialiased leading-none border-0 bg-transparent shadow-none outline-none transition-colors hover:text-gray-500 focus-visible:text-gray-600"
+        style={{ boxShadow: "none" }}
+        aria-label="Más información"
+        onPointerEnter={() => setOpen(true)}
+        onPointerLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        ?
+      </button>
+      {open &&
+        rect &&
+        createPortal(
+          <div
+            role="tooltip"
+            className="pointer-events-none fixed z-[1000] max-w-[min(16rem,calc(100vw-1rem))] rounded-md border border-white/5 bg-gray-900 px-2.5 py-2 text-left text-xs font-normal leading-snug text-white shadow-md"
+            style={{ top, left, width: HELP_TOOLTIP_W }}
+          >
+            {text}
+          </div>,
+          document.body
+        )}
+    </>
+  );
+}
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -38,6 +114,8 @@ export function ProductFormModal({
   const [costPrice, setCostPrice] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [trackStock, setTrackStock] = useState(true);
+  const [allowDecimalInventory, setAllowDecimalInventory] = useState(true);
+  const [expiresAtYmd, setExpiresAtYmd] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -58,6 +136,8 @@ export function ProductFormModal({
       setCostPrice(product.costPrice != null ? String(product.costPrice) : "");
       setSalePrice(product.salePrice != null ? String(product.salePrice) : "");
       setTrackStock(product.trackStock);
+      setAllowDecimalInventory(product.allowDecimalInventory ?? true);
+      setExpiresAtYmd(toYmdFromIso(product.expiresAt));
       setImagePreview(product.images?.[0]?.url ?? null);
       const qty: Record<string, string> = {};
       locations.forEach((loc) => {
@@ -77,6 +157,8 @@ export function ProductFormModal({
       setCostPrice("");
       setSalePrice("");
       setTrackStock(true);
+      setAllowDecimalInventory(true);
+      setExpiresAtYmd("");
       setImageFile(null);
       setImagePreview(null);
       if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
@@ -108,6 +190,32 @@ export function ProductFormModal({
     saleValue > 0
       ? ((saleValue - costValue) / saleValue) * 100
       : null;
+
+  useEffect(() => {
+    if (allowDecimalInventory) return;
+    setQuantityByLocation((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) {
+        const n = parseFloat(next[k] ?? "0");
+        if (Number.isFinite(n)) {
+          next[k] = String(Math.round(n));
+        }
+      }
+      return next;
+    });
+  }, [allowDecimalInventory]);
+
+  const handleLocationQtyChange = (locId: string, value: string) => {
+    if (allowDecimalInventory) {
+      if (value === "" || /^\d*(\.\d{0,2})?$/.test(value)) {
+        setQuantityByLocation((prev) => ({ ...prev, [locId]: value }));
+      }
+    } else {
+      if (value === "" || /^\d*$/.test(value)) {
+        setQuantityByLocation((prev) => ({ ...prev, [locId]: value }));
+      }
+    }
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -154,10 +262,13 @@ export function ProductFormModal({
         imageUrl = url;
       }
       // Si es edición y no hay nueva imagen, no pasamos imageUrl (se mantienen las actuales)
-      const inventoryByLocation = locations.map((loc) => ({
-        locationId: loc.id,
-        quantity: parseFloat(quantityByLocation[loc.id] ?? "0") || 0,
-      }));
+      const inventoryByLocation = locations.map((loc) => {
+        const raw = parseFloat(quantityByLocation[loc.id] ?? "0") || 0;
+        const quantity = allowDecimalInventory ? raw : Math.round(raw);
+        return { locationId: loc.id, quantity };
+      });
+
+      const expiresPayload = expiresAtYmd.trim() ? expiresAtYmd.trim() : null;
 
       if (isEdit && product) {
         await onSubmit({
@@ -173,6 +284,8 @@ export function ProductFormModal({
           costPrice: costPrice ? Number(costPrice) : undefined,
           salePrice: salePrice ? Number(salePrice) : undefined,
           trackStock,
+          allowDecimalInventory,
+          expiresAt: expiresPayload,
           imageUrl,
           inventoryByLocation,
         });
@@ -190,6 +303,8 @@ export function ProductFormModal({
           costPrice: costPrice ? Number(costPrice) : undefined,
           salePrice: salePrice ? Number(salePrice) : undefined,
           trackStock,
+          allowDecimalInventory,
+          expiresAt: expiresPayload,
           imageUrl,
           inventoryByLocation,
         });
@@ -354,7 +469,7 @@ export function ProductFormModal({
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-emerald-500 focus:outline-none"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <input
               type="checkbox"
               id="trackStock"
@@ -365,6 +480,39 @@ export function ProductFormModal({
             <label htmlFor="trackStock" className="text-sm text-gray-600">
               Controlar inventario
             </label>
+            <FieldHelp
+              text="Con esta opción activa, el sistema descuenta y hace seguimiento de existencias al vender o ajustar stock. Desactívala para productos que no llevas en almacén (p. ej. un servicio o artículo solo de catálogo)."
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input
+              type="checkbox"
+              id="allowDecimalInventory"
+              checked={allowDecimalInventory}
+              onChange={(e) => setAllowDecimalInventory(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            <label htmlFor="allowDecimalInventory" className="text-sm text-gray-600">
+              Permitir decimales en inventario
+            </label>
+            <FieldHelp
+              text="Indica si las cantidades de inventario pueden llevar fracciones (2,5 kg) o solo números enteros (piezas). Afecta cómo se escriben las cantidades por sucursal en este formulario."
+            />
+          </div>
+          <div>
+            <div className="mb-1 flex items-center gap-1.5">
+              <label className="text-sm text-gray-600" htmlFor="expiresAtYmd">
+                Vencimiento (opcional)
+              </label>
+              <FieldHelp text="Fecha aproximada de caducidad o consumo preferente. Se usa en el reporte Vencen pronto (productos con stock y control de inventario)." />
+            </div>
+            <input
+              id="expiresAtYmd"
+              type="date"
+              value={expiresAtYmd}
+              onChange={(e) => setExpiresAtYmd(e.target.value)}
+              className="w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-emerald-500 focus:outline-none"
+            />
           </div>
           {locations.length > 0 && (
             <div>
@@ -378,16 +526,10 @@ export function ProductFormModal({
                       {loc.name}
                     </span>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                      type="text"
+                      inputMode={allowDecimalInventory ? "decimal" : "numeric"}
                       value={quantityByLocation[loc.id] ?? "0"}
-                      onChange={(e) =>
-                        setQuantityByLocation((prev) => ({
-                          ...prev,
-                          [loc.id]: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => handleLocationQtyChange(loc.id, e.target.value)}
                       className="w-24 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-emerald-500 focus:outline-none"
                     />
                   </div>

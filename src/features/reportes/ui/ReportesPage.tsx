@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { IconChartBar, IconClock, IconCurrency, IconTrendingUp } from "@/shared/ui/icons";
+import { IconChartBar, IconClock, IconCurrency, IconUsers } from "@/shared/ui/icons";
 
 const reportButtons = [
   {
@@ -15,10 +15,10 @@ const reportButtons = [
     path: "/reportes/vencen-pronto",
   },
   {
-    id: "ventas-por-periodo",
-    label: "Ventas por período",
-    icon: IconTrendingUp,
-    path: "/reportes/ventas-por-periodo",
+    id: "ventas-por-usuario",
+    label: "Ventas por usuario",
+    icon: IconUsers,
+    path: "/reportes/ventas-por-usuario",
   },
   {
     id: "ingresos-vs-gastos",

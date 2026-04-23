@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import { Modal } from "@/shared/ui/Modal";
+import { SearchableSelect } from "@/shared/ui/SearchableSelect";
+import { useLocations } from "@/features/inventory/hooks/useInventory";
 import type { User } from "../api/usersApi";
 import type { CreateUserInput, UpdateUserInput } from "../api/usersApi";
 
 interface UserFormModalProps {
   isOpen: boolean;
   onClose: () => void;
+  tenantId: string;
   user?: User | null;
   onSubmit: (data: CreateUserInput | (UpdateUserInput & { id: string })) => Promise<void>;
 }
@@ -13,14 +16,17 @@ interface UserFormModalProps {
 export function UserFormModal({
   isOpen,
   onClose,
+  tenantId,
   user,
   onSubmit,
 }: UserFormModalProps) {
   const isEdit = !!user;
+  const { locations } = useLocations(tenantId || undefined);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [defaultLocationId, setDefaultLocationId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,13 +36,20 @@ export function UserFormModal({
       setEmail(user.email);
       setPassword("");
       setPhone(user.phone ?? "");
+      setDefaultLocationId(user.defaultLocationId ?? "");
     } else {
       setName("");
       setEmail("");
       setPassword("");
       setPhone("");
+      setDefaultLocationId("");
     }
   }, [user, isOpen]);
+
+  useEffect(() => {
+    if (user || !isOpen || !locations.length) return;
+    setDefaultLocationId((prev) => (prev ? prev : locations[0].id));
+  }, [user, isOpen, locations]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,6 +66,10 @@ export function UserFormModal({
       setError("La contraseña es requerida");
       return;
     }
+    if (!defaultLocationId) {
+      setError("Selecciona la tienda por defecto");
+      return;
+    }
     setSubmitting(true);
     try {
       if (isEdit && user) {
@@ -61,6 +78,7 @@ export function UserFormModal({
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim() || null,
+          defaultLocationId,
           ...(password ? { password } : {}),
         });
       } else {
@@ -69,6 +87,7 @@ export function UserFormModal({
           email: email.trim(),
           password,
           phone: phone.trim() || undefined,
+          defaultLocationId,
         });
       }
       onClose();
@@ -134,6 +153,22 @@ export function UserFormModal({
               onChange={(e) => setPhone(e.target.value)}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-emerald-500 focus:outline-none"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-gray-600">Tienda por defecto *</label>
+            {locations.length === 0 ? (
+              <p className="text-sm text-amber-700">
+                No hay ubicaciones. Crea una en Configuraciones.
+              </p>
+            ) : (
+              <SearchableSelect
+                options={locations.map((l) => ({ value: l.id, label: l.name }))}
+                value={defaultLocationId}
+                onChange={setDefaultLocationId}
+                placeholder="Seleccionar tienda..."
+                allowClear={false}
+              />
+            )}
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">

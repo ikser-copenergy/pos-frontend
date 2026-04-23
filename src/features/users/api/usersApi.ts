@@ -9,6 +9,8 @@ export interface User {
   status?: string;
   createdAt?: string;
   tenantId?: string;
+  defaultLocationId: string;
+  defaultLocation?: { id: string; name: string };
 }
 
 export interface CreateUserInput {
@@ -16,6 +18,7 @@ export interface CreateUserInput {
   email: string;
   password: string;
   phone?: string;
+  defaultLocationId: string;
 }
 
 export interface UpdateUserInput {
@@ -23,6 +26,7 @@ export interface UpdateUserInput {
   email?: string;
   phone?: string | null;
   password?: string;
+  defaultLocationId?: string;
 }
 
 export const usersApi = {

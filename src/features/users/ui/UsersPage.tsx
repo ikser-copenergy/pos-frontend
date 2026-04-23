@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/core/auth/AuthContext";
 import { useUsers } from "../hooks/useUsers";
 import { UserFormModal } from "./UserFormModal";
 import { IconEdit, IconTrash } from "@/shared/ui/icons";
@@ -9,6 +10,7 @@ import type { CreateUserInput, UpdateUserInput } from "../api/usersApi";
 const MAX_CASHIERS = 3;
 
 export function UsersPage() {
+  const { user: authUser } = useAuth();
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
@@ -70,6 +72,7 @@ export function UsersPage() {
           setShowModal(false);
           setEditingUser(null);
         }}
+        tenantId={authUser?.tenantId ?? ""}
         user={editingUser}
         onSubmit={handleSubmit}
       />
@@ -114,6 +117,9 @@ export function UsersPage() {
                   Correo
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
+                  Tienda por defecto
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-600">
                   Rol
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-600">
@@ -126,6 +132,9 @@ export function UsersPage() {
                 <tr key={u.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
                   <td className="px-4 py-3 text-gray-600">{u.email}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {u.defaultLocation?.name ?? "—"}
+                  </td>
                   <td className="px-4 py-3 text-gray-600">{u.role}</td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">

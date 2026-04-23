@@ -48,7 +48,7 @@ const FORMATS_WITH_ALPHA = ["image/png", "image/gif", "image/webp"];
 async function getCroppedBlob(
   image: HTMLImageElement,
   crop: PixelCrop,
-  maxPixels: number = MAX_PIXELS,
+  maxPixels: number = DEFAULT_MAX_PIXELS,
   preserveAlpha: boolean = false
 ): Promise<{ blob: Blob; mime: string; ext: string }> {
   const scaleX = image.naturalWidth / image.width;
@@ -135,10 +135,10 @@ export function ImageCropModal({
       const { blob, mime, ext } = await getCroppedBlob(
         imgRef.current,
         completedCrop,
-        MAX_PIXELS,
+        maxPixels,
         preserveAlpha
       );
-      const file = new File([blob], `logo.${ext}`, { type: mime });
+      const file = new File([blob], `${outputFileName}.${ext}`, { type: mime });
       await onConfirm(file);
       onClose();
     } catch (e) {
