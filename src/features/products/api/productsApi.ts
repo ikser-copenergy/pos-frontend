@@ -6,9 +6,17 @@ import type {
 } from "../types/product.types";
 
 export const productsApi = {
-  getAll: (tenantId?: string): Promise<Product[]> => {
-    const qs = tenantId ? `?tenantId=${tenantId}` : "";
-    return apiFetch<Product[]>(`/products${qs}`);
+  getAll: (
+    tenantId?: string,
+    options?: { includeArchived?: boolean; search?: string }
+  ): Promise<Product[]> => {
+    const params = new URLSearchParams();
+    if (tenantId) params.set("tenantId", tenantId);
+    if (options?.includeArchived) params.set("includeArchived", "true");
+    if (options?.search) params.set("search", options.search);
+
+    const qs = params.toString();
+    return apiFetch<Product[]>(`/products${qs ? `?${qs}` : ""}`);
   },
 
   getById: (id: string): Promise<Product> =>

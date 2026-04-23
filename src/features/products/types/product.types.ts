@@ -16,6 +16,7 @@ export interface ProductInventoryItem {
 export interface Product {
   id: string;
   tenantId: string;
+  taxId: string;
   name: string;
   description?: string | null;
   categoryId?: string | null;
@@ -31,10 +32,12 @@ export interface Product {
   updatedAt: string;
   images: ProductImage[];
   inventory?: ProductInventoryItem[];
+  tax?: { id: string; name: string; rate: number };
 }
 
 export interface CreateProductInput {
   tenantId: string;
+  taxId: string;
   name: string;
   description?: string;
   categoryId?: string;
@@ -51,6 +54,7 @@ export interface CreateProductInput {
 }
 
 export interface UpdateProductInput {
+  taxId?: string;
   name?: string;
   description?: string;
   categoryId?: string;

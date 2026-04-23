@@ -36,6 +36,9 @@ export function NewSalePage() {
   const [invoiceSale, setInvoiceSale] = useState<Sale | null>(null);
   const [amountToCharge, setAmountToCharge] = useState("");
   const [step, setStep] = useState<1 | 2>(1);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [debouncedProductSearchTerm, setDebouncedProductSearchTerm] = useState("");
+  const [loadingProducts, setLoadingProducts] = useState(false);
 
   const { locations } = useLocations(tenantId || undefined);
   const { create, updateSaleInvoice } = useSales(tenantId || undefined);
@@ -44,10 +47,47 @@ export function NewSalePage() {
 
   useEffect(() => {
     if (tenantId) {
-      productsApi.getAll(tenantId).then(setProducts);
       customersApi.getAll(tenantId).then(setCustomers);
     }
   }, [tenantId]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedProductSearchTerm(productSearchTerm.trim());
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [productSearchTerm]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    if (debouncedProductSearchTerm.length < 3) {
+      setProducts([]);
+      setLoadingProducts(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingProducts(true);
+
+    productsApi
+      .getAll(tenantId, { search: debouncedProductSearchTerm })
+      .then((data) => {
+        if (cancelled) return;
+        setProducts(data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setProducts([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingProducts(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, debouncedProductSearchTerm]);
 
   useEffect(() => {
     if (locations.length && !locationId) setLocationId(locations[0].id);
@@ -260,7 +300,17 @@ export function NewSalePage() {
                 options={productOptions}
                 value={selectedProductId}
                 onChange={setSelectedProductId}
+                onInputChange={setProductSearchTerm}
                 placeholder="Buscar producto..."
+                noOptionsMessage={(inputValue) => {
+                  const trimmed = inputValue.trim();
+                  if (trimmed.length < 3) {
+                    return "Escribe al menos 3 letras para buscar productos";
+                  }
+                  return loadingProducts
+                    ? "Buscando productos..."
+                    : `Sin resultados para "${trimmed}"`;
+                }}
               />
             </div>
             <input

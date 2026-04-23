@@ -1,4 +1,8 @@
-import Select, { type SingleValue, type StylesConfig } from "react-select";
+import Select, {
+  type InputActionMeta,
+  type SingleValue,
+  type StylesConfig,
+} from "react-select";
 
 export interface SearchableSelectOption {
   value: string;
@@ -9,10 +13,12 @@ interface SearchableSelectProps {
   options: SearchableSelectOption[];
   value: string;
   onChange: (value: string) => void;
+  onInputChange?: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
   allowClear?: boolean;
   className?: string;
+  noOptionsMessage?: (inputValue: string) => string;
 }
 
 const customStyles: StylesConfig<SearchableSelectOption, false> = {
@@ -62,10 +68,12 @@ export function SearchableSelect({
   options,
   value,
   onChange,
+  onInputChange,
   placeholder = "Buscar o seleccionar...",
   disabled = false,
   allowClear = true,
   className = "",
+  noOptionsMessage,
 }: SearchableSelectProps) {
   const selectedOption = options.find((o) => o.value === value) ?? null;
 
@@ -73,18 +81,30 @@ export function SearchableSelect({
     onChange(opt?.value ?? "");
   };
 
+  const handleInputChange = (inputValue: string, meta: InputActionMeta) => {
+    if (meta.action === "input-change") {
+      onInputChange?.(inputValue);
+    }
+    return inputValue;
+  };
+
   return (
     <div className={className}>
       <Select<SearchableSelectOption, false>
         value={selectedOption}
         onChange={handleChange}
+        onInputChange={handleInputChange}
         options={options}
         placeholder={placeholder}
         isDisabled={disabled}
         isClearable={allowClear}
         isSearchable
         noOptionsMessage={({ inputValue }) =>
-          inputValue ? `Sin resultados para "${inputValue}"` : "Sin opciones"
+          noOptionsMessage
+            ? noOptionsMessage(inputValue)
+            : inputValue
+              ? `Sin resultados para "${inputValue}"`
+              : "Sin opciones"
         }
         styles={customStyles}
         classNamePrefix="searchable-select"

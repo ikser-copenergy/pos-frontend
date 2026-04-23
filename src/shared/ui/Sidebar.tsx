@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
-import { IconMenu, IconBox, IconCart, IconPlus, IconPackage, IconFolder, IconUsers, IconSettings } from "./icons";
+import { useAuth } from "@/core/auth/AuthContext";
+import { IconMenu, IconBox, IconCart, IconPlus, IconPackage, IconFolder, IconUsers, IconSettings, IconChartBar, IconUserCog, IconCurrency } from "./icons";
 
-const menuItems = [
+const baseMenuItems = [
   { to: "/productos", label: "Productos", icon: IconPackage },
   { to: "/categorias", label: "Categorías", icon: IconFolder },
+  { to: "/impuestos", label: "Impuestos", icon: IconCurrency },
   { to: "/clientes", label: "Clientes", icon: IconUsers },
   { to: "/inventario", label: "Inventario", icon: IconBox },
   { to: "/ventas", label: "Ventas", icon: IconCart },
@@ -12,7 +14,15 @@ const menuItems = [
   { to: "/configuraciones", label: "Configuraciones", icon: IconSettings },
 ];
 
+const adminMenuItems = [
+  { to: "/usuarios", label: "Usuarios", icon: IconUserCog },
+  { to: "/reportes", label: "Reportes", icon: IconChartBar },
+];
+
 export function Sidebar() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
+  const menuItems = [...baseMenuItems, ...(isAdmin ? adminMenuItems : [])];
   const [open, setOpen] = useState(false);
 
   return (

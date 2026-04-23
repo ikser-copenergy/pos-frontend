@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useSettings } from "../hooks/useSettings";
 import { useLocations } from "@/features/locations/hooks/useLocations";
+import { tenantsApi } from "@/features/inventory/api/tenantsApi";
+import { ImageCropModal } from "@/shared/ui/ImageCropModal";
 import { LocationFormModal } from "@/features/locations/ui/LocationFormModal";
 import { IconEdit, IconTrash } from "@/shared/ui/icons";
 import { ConfirmModal } from "@/shared/ui/ConfirmModal";
@@ -23,7 +25,7 @@ const PRESET_KEYS = [
 ] as const;
 
 export function SettingsPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const tenantId = user?.tenantId ?? "";
   const { loading, error, getValue, upsert } = useSettings(tenantId || undefined);
   const {
@@ -39,6 +41,10 @@ export function SettingsPage() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [deletingLocation, setDeletingLocation] = useState<Location | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [cropImageFileType, setCropImageFileType] = useState<string>("");
 
   const handleChange = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -92,6 +98,35 @@ export function SettingsPage() {
     await updateLocation(loc.id, { isMain: true });
   };
 
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || user.role !== "ADMIN") return;
+    setCropImageSrc(URL.createObjectURL(file));
+    setCropImageFileType(file.type);
+    setCropModalOpen(true);
+    e.target.value = "";
+  };
+
+  const handleCropConfirm = async (croppedFile: File) => {
+    if (!user) return;
+    setLogoUploading(true);
+    try {
+      await tenantsApi.updateLogo(croppedFile);
+      await refreshUser();
+    } finally {
+      setLogoUploading(false);
+      if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+      setCropImageSrc(null);
+      setCropModalOpen(false);
+    }
+  };
+
+  const handleCropClose = () => {
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+    setCropImageSrc(null);
+    setCropModalOpen(false);
+  };
+
   if (!user) return null;
 
   return (
@@ -102,6 +137,47 @@ export function SettingsPage() {
           Configuración general del negocio para {user.tenantName}
         </p>
       </div>
+
+      {cropModalOpen && cropImageSrc && (
+        <ImageCropModal
+          isOpen={cropModalOpen}
+          onClose={handleCropClose}
+          imageSrc={cropImageSrc}
+          sourceFileType={cropImageFileType}
+          title="Recortar logo (formato cuadrado)"
+          outputFileName="logo"
+          onConfirm={handleCropConfirm}
+        />
+      )}
+
+      {user.role === "ADMIN" && (
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-2 text-sm font-medium text-gray-700">Logo del negocio</h3>
+          <div className="flex items-center gap-4">
+            {user.tenantLogoUrl ? (
+              <img
+                src={user.tenantLogoUrl}
+                alt="Logo"
+                className="h-16 w-16 rounded border object-cover"
+              />
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded border bg-gray-100 text-gray-400">
+                Sin logo
+              </div>
+            )}
+            <div>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleLogoSelect}
+                disabled={logoUploading}
+                className="text-sm text-gray-600 file:mr-2 file:rounded file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-emerald-700"
+              />
+              {logoUploading && <span className="ml-2 text-sm text-gray-500">Subiendo...</span>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {(error || locationsError) && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/core/auth/AuthContext";
 
 export function LoginPage() {
@@ -77,6 +78,12 @@ export function LoginPage() {
             {loading ? "Iniciando sesión..." : "Iniciar sesión"}
           </button>
         </form>
+        <p className="mt-6 text-center text-sm text-gray-600">
+          ¿No tienes cuenta?{" "}
+          <Link to="/register" className="font-medium text-emerald-600 hover:text-emerald-500">
+            Crear cuenta
+          </Link>
+        </p>
       </div>
     </div>
   );

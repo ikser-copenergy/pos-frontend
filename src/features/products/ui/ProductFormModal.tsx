@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Modal } from "@/shared/ui/Modal";
+import { ImageCropModal, PRODUCT_IMAGE_MAX_PIXELS } from "@/shared/ui/ImageCropModal";
 import { SearchableSelect } from "@/shared/ui/SearchableSelect";
 import { productsApi } from "../api/productsApi";
 import type { CreateProductInput, Product, UpdateProductInput } from "../types/product.types";
@@ -9,6 +10,7 @@ interface ProductFormModalProps {
   onClose: () => void;
   tenantId: string;
   categories: { id: string; name: string }[];
+  taxes: { id: string; name: string; rate: number }[];
   locations: { id: string; name: string }[];
   product?: Product | null;
   onSubmit: (data: CreateProductInput | (UpdateProductInput & { id: string })) => Promise<void>;
@@ -19,6 +21,7 @@ export function ProductFormModal({
   onClose,
   tenantId,
   categories,
+  taxes,
   locations,
   product,
   onSubmit,
@@ -27,6 +30,7 @@ export function ProductFormModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [taxId, setTaxId] = useState("");
   const [type, setType] = useState("SIMPLE");
   const [unitType, setUnitType] = useState("");
   const [sku, setSku] = useState("");
@@ -36,6 +40,9 @@ export function ProductFormModal({
   const [trackStock, setTrackStock] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [cropImageFileType, setCropImageFileType] = useState("");
   const [quantityByLocation, setQuantityByLocation] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -43,6 +50,7 @@ export function ProductFormModal({
       setName(product.name);
       setDescription(product.description ?? "");
       setCategoryId(product.categoryId ?? "");
+      setTaxId(product.taxId ?? "");
       setType(product.type);
       setUnitType(product.unitType ?? "");
       setSku(product.sku ?? "");
@@ -61,6 +69,7 @@ export function ProductFormModal({
       setName("");
       setDescription("");
       setCategoryId("");
+      setTaxId("");
       setType("SIMPLE");
       setUnitType("");
       setSku("");
@@ -70,6 +79,10 @@ export function ProductFormModal({
       setTrackStock(true);
       setImageFile(null);
       setImagePreview(null);
+      if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+      setCropImageSrc(null);
+      setCropImageFileType("");
+      setCropModalOpen(false);
       const qty: Record<string, string> = {};
       locations.forEach((loc) => {
         qty[loc.id] = "0";
@@ -79,16 +92,47 @@ export function ProductFormModal({
   }, [product, isOpen, locations]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const handlePriceInputChange =
+    (setter: (value: string) => void) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      if (value === "" || /^\d*(\.\d{0,2})?$/.test(value)) {
+        setter(value);
+      }
+    };
+  const costValue = parseFloat(costPrice);
+  const saleValue = parseFloat(salePrice);
+  const profitPercentage =
+    Number.isFinite(costValue) &&
+    Number.isFinite(saleValue) &&
+    saleValue > 0
+      ? ((saleValue - costValue) / saleValue) * 100
+      : null;
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-    } else {
-      setImageFile(null);
-      setImagePreview(product?.images?.[0]?.url ?? null);
+      setCropImageSrc(URL.createObjectURL(file));
+      setCropImageFileType(file.type);
+      setCropModalOpen(true);
     }
+    e.target.value = "";
+  };
+
+  const handleCropConfirm = (croppedFile: File) => {
+    setImageFile(croppedFile);
+    setImagePreview(URL.createObjectURL(croppedFile));
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+    setCropImageSrc(null);
+    setCropImageFileType("");
+    setCropModalOpen(false);
+  };
+
+  const handleCropClose = () => {
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+    setCropImageSrc(null);
+    setCropImageFileType("");
+    setCropModalOpen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,6 +140,10 @@ export function ProductFormModal({
     setError(null);
     if (!name.trim()) {
       setError("El nombre es requerido");
+      return;
+    }
+    if (!taxId) {
+      setError("Debes seleccionar un impuesto");
       return;
     }
     setSubmitting(true);
@@ -115,6 +163,7 @@ export function ProductFormModal({
         await onSubmit({
           id: product.id,
           name: name.trim(),
+          taxId,
           description: description.trim() || undefined,
           categoryId: categoryId || undefined,
           type,
@@ -131,6 +180,7 @@ export function ProductFormModal({
         await onSubmit({
           tenantId,
           name: name.trim(),
+          taxId,
           description: description.trim() || undefined,
           categoryId: categoryId || undefined,
           type,
@@ -154,16 +204,34 @@ export function ProductFormModal({
 
   const handleClose = () => {
     setImageFile(null);
+    if (cropImageSrc) URL.revokeObjectURL(cropImageSrc);
+    setCropImageSrc(null);
+    setCropImageFileType("");
+    setCropModalOpen(false);
     setError(null);
     onClose();
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title={isEdit ? "Editar producto" : "Nuevo producto"}
-    >
+    <>
+      {cropModalOpen && cropImageSrc && (
+        <ImageCropModal
+          isOpen={cropModalOpen}
+          onClose={handleCropClose}
+          imageSrc={cropImageSrc}
+          sourceFileType={cropImageFileType}
+          maxPixels={PRODUCT_IMAGE_MAX_PIXELS}
+          title="Recortar imagen del producto"
+          outputFileName="producto"
+          onConfirm={handleCropConfirm}
+        />
+      )}
+
+      <Modal
+        isOpen={isOpen}
+        onClose={handleClose}
+        title={isEdit ? "Editar producto" : "Nuevo producto"}
+      >
       <form onSubmit={handleSubmit}>
         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
         <div className="max-h-[70vh] space-y-4 overflow-y-auto">
@@ -199,6 +267,18 @@ export function ProductFormModal({
             />
           </div>
           <div>
+            <label className="mb-1 block text-sm text-gray-600">Impuesto *</label>
+            <SearchableSelect
+              options={[
+                { value: "", label: taxes.length > 0 ? "Seleccionar impuesto..." : "No hay impuestos" },
+                ...taxes.map((t) => ({ value: t.id, label: `${t.name} (${t.rate.toFixed(2)}%)` })),
+              ]}
+              value={taxId}
+              onChange={setTaxId}
+              placeholder="Buscar impuesto..."
+            />
+          </div>
+          <div>
             <label className="mb-1 block text-sm text-gray-600">Tipo</label>
             <SearchableSelect
               options={[
@@ -231,7 +311,7 @@ export function ProductFormModal({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="mb-1 block text-sm text-gray-600">Precio costo</label>
               <input
@@ -239,7 +319,7 @@ export function ProductFormModal({
                 step="0.01"
                 min="0"
                 value={costPrice}
-                onChange={(e) => setCostPrice(e.target.value)}
+                onChange={handlePriceInputChange(setCostPrice)}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-emerald-500 focus:outline-none"
               />
             </div>
@@ -250,8 +330,17 @@ export function ProductFormModal({
                 step="0.01"
                 min="0"
                 value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value)}
+                onChange={handlePriceInputChange(setSalePrice)}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-emerald-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-gray-600">Ganancia %</label>
+              <input
+                type="text"
+                disabled
+                value={profitPercentage != null ? `${profitPercentage.toFixed(2)}%` : "--"}
+                className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-gray-600"
               />
             </div>
           </div>
@@ -343,5 +432,6 @@ export function ProductFormModal({
         </div>
       </form>
     </Modal>
+    </>
   );
 }

@@ -4,6 +4,7 @@ import { useProducts } from "../hooks/useProducts";
 import { useLocations } from "@/features/inventory/hooks/useInventory";
 import { categoriesApi } from "../api/categoriesApi";
 import { productsApi } from "../api/productsApi";
+import { taxesApi } from "@/features/taxes/api/taxesApi";
 import { ProductFormModal } from "./ProductFormModal";
 import { IconArchive, IconEdit } from "@/shared/ui/icons";
 import { ConfirmModal } from "@/shared/ui/ConfirmModal";
@@ -16,6 +17,7 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [archivingProduct, setArchivingProduct] = useState<Product | null>(null);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [taxes, setTaxes] = useState<{ id: string; name: string; rate: number }[]>([]);
 
   const { locations } = useLocations(tenantId || undefined);
   const { products, loading, error, create, update, archive } = useProducts(
@@ -26,6 +28,9 @@ export function ProductsPage() {
     if (tenantId) {
       categoriesApi.getAll(tenantId).then((data) =>
         setCategories(data.map((c) => ({ id: c.id, name: c.name })))
+      );
+      taxesApi.getAll(tenantId).then((data) =>
+        setTaxes(data.map((tax) => ({ id: tax.id, name: tax.name, rate: tax.rate })))
       );
     }
   }, [tenantId]);
@@ -86,6 +91,7 @@ export function ProductsPage() {
         onClose={closeModal}
         tenantId={tenantId}
         categories={categories}
+        taxes={taxes}
         locations={locations}
         product={editingProduct}
         onSubmit={handleSubmit}
