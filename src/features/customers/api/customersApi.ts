@@ -7,9 +7,15 @@ import type {
 } from "../types/customer.types";
 
 export const customersApi = {
-  getAll: (tenantId?: string): Promise<Customer[]> => {
-    const qs = tenantId ? `?tenantId=${tenantId}` : "";
-    return apiFetch<Customer[]>(`/customers${qs}`);
+  getAll: (
+    tenantId?: string,
+    options?: { search?: string }
+  ): Promise<Customer[]> => {
+    const params = new URLSearchParams();
+    if (tenantId) params.set("tenantId", tenantId);
+    if (options?.search) params.set("search", options.search);
+    const qs = params.toString();
+    return apiFetch<Customer[]>(`/customers${qs ? `?${qs}` : ""}`);
   },
 
   getAllPaginated: (

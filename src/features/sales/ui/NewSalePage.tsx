@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/core/auth/AuthContext";
 import { useLocations } from "@/features/inventory/hooks/useInventory";
 import { productsApi } from "@/features/products/api/productsApi";
 import { customersApi } from "@/features/customers/api/customersApi";
 import { SearchableSelect } from "@/shared/ui/SearchableSelect";
+import { Modal } from "@/shared/ui/Modal";
 import { useSales } from "../hooks/useSales";
 import { InvoiceModal } from "./InvoiceModal";
 import type { Product } from "@/features/products/types/product.types";
@@ -35,10 +36,13 @@ export function NewSalePage() {
   const [error, setError] = useState<string | null>(null);
   const [invoiceSale, setInvoiceSale] = useState<Sale | null>(null);
   const [amountToCharge, setAmountToCharge] = useState("");
-  const [step, setStep] = useState<1 | 2>(1);
+  const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [productSearchTerm, setProductSearchTerm] = useState("");
   const [debouncedProductSearchTerm, setDebouncedProductSearchTerm] = useState("");
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
+  const [debouncedCustomerSearchTerm, setDebouncedCustomerSearchTerm] = useState("");
+  const [loadingCustomers, setLoadingCustomers] = useState(false);
 
   const { locations } = useLocations(tenantId || undefined);
   const { create, updateSaleInvoice } = useSales(tenantId || undefined);
@@ -46,17 +50,18 @@ export function NewSalePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
 
   useEffect(() => {
-    if (tenantId) {
-      customersApi.getAll(tenantId).then(setCustomers);
-    }
-  }, [tenantId]);
-
-  useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedProductSearchTerm(productSearchTerm.trim());
     }, 350);
     return () => clearTimeout(timer);
   }, [productSearchTerm]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCustomerSearchTerm(customerSearchTerm.trim());
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [customerSearchTerm]);
 
   useEffect(() => {
     if (!tenantId) return;
@@ -90,6 +95,37 @@ export function NewSalePage() {
   }, [tenantId, debouncedProductSearchTerm]);
 
   useEffect(() => {
+    if (!tenantId) return;
+    if (debouncedCustomerSearchTerm.length < 3) {
+      setCustomers([]);
+      setLoadingCustomers(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingCustomers(true);
+
+    customersApi
+      .getAll(tenantId, { search: debouncedCustomerSearchTerm })
+      .then((data) => {
+        if (cancelled) return;
+        setCustomers(data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCustomers([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingCustomers(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, debouncedCustomerSearchTerm]);
+
+  useEffect(() => {
     if (!locations.length || locationId) return;
     const preferred =
       user?.defaultLocationId &&
@@ -108,12 +144,33 @@ export function NewSalePage() {
     })),
   ];
 
+  const selectedProduct = useMemo(
+    () => products.find((p) => p.id === selectedProductId) ?? null,
+    [products, selectedProductId]
+  );
+  const allowDecimalQty = selectedProduct?.allowDecimalInventory ?? false;
+
+  const handleQuantityChange = (value: string) => {
+    if (allowDecimalQty) {
+      if (value === "" || /^\d*(\.\d{0,2})?$/.test(value)) {
+        setQuantity(value);
+      }
+      return;
+    }
+    if (value === "" || /^\d+$/.test(value)) {
+      setQuantity(value);
+    }
+  };
+
   const addToCart = () => {
     if (!selectedProductId || !quantity || parseFloat(quantity) <= 0) return;
     const product = products.find((p) => p.id === selectedProductId);
     if (!product) return;
     const price = product.salePrice ?? 0;
-    const qty = parseFloat(quantity);
+    const rawQty = parseFloat(quantity);
+    const qty = product.allowDecimalInventory
+      ? Number(rawQty.toFixed(2))
+      : Math.max(1, Math.trunc(rawQty));
     const total = price * qty;
     setCart((prev) => {
       const existing = prev.find((i) => i.productId === selectedProductId);
@@ -132,6 +189,9 @@ export function NewSalePage() {
     });
     setSelectedProductId("");
     setQuantity("1");
+    setProductSearchTerm("");
+    setDebouncedProductSearchTerm("");
+    setShowAddProductModal(false);
   };
 
   const removeFromCart = (productId: string) => {
@@ -184,7 +244,6 @@ export function NewSalePage() {
       });
       setCart([]);
       setDiscount("0");
-      setStep(1);
       setInvoiceSale(newSale);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al registrar venta");
@@ -230,104 +289,194 @@ export function NewSalePage() {
         </div>
       </div>
 
-      {/* Indicador de pasos */}
-      <div className="flex items-center rounded-lg border border-gray-200 bg-white p-2 shadow-sm">
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-medium text-gray-900">Carrito</h3>
+          <button
+            type="button"
+            onClick={() => setShowAddProductModal(true)}
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
+          >
+            + Agregar producto
+          </button>
+        </div>
+
+        {cart.length === 0 ? (
+          <p className="py-8 text-center text-gray-500">No hay productos en el carrito</p>
+        ) : (
+          <div className="space-y-2">
+            {cart.map((item) => (
+              <div
+                key={item.productId}
+                className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2"
+              >
+                <div>
+                  <span className="font-medium text-gray-900">{item.productName}</span>
+                  <span className="ml-2 text-sm text-gray-500">
+                    {item.quantity} x L{item.unitPrice} = L{item.total.toFixed(2)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeFromCart(item.productId)}
+                  className="rounded p-1 text-red-500 hover:bg-red-50"
+                  title="Quitar"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-6 space-y-2 border-t border-gray-200 pt-4">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Subtotal</span>
+            <span>L{subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Descuento</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value)}
+              className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+            />
+          </div>
+          <div className="flex justify-between font-medium">
+            <span>Total</span>
+            <span>L{total.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className="mb-1 block text-sm text-gray-600">Monto a cobrar</label>
+          <input
+            type="number"
+            min="0"
+            max={total}
+            step="0.01"
+            value={amountToCharge}
+            onChange={(e) => setAmountToCharge(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2"
+            placeholder="0"
+          />
+          <p className="mt-1 text-xs text-gray-500">Máximo: L{total.toFixed(2)}</p>
+        </div>
+        <div className="mt-4">
+          <label className="mb-1 block text-sm text-gray-600">Método de pago</label>
+          <select
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value as "CASH" | "TRANSFER" | "CARD")}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2"
+          >
+            <option value="CASH">Efectivo</option>
+            <option value="CARD">Tarjeta</option>
+            <option value="TRANSFER">Transferencia</option>
+          </select>
+        </div>
+
+        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
         <button
           type="button"
-          onClick={() => setStep(1)}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-            step === 1
-              ? "bg-emerald-600 text-white shadow-sm"
-              : "text-gray-600 hover:bg-gray-50"
-          }`}
+          onClick={handleSubmit}
+          disabled={!canSubmit || submitting}
+          className="mt-4 w-full rounded-lg bg-emerald-600 py-3 font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
         >
-          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-            step === 1 ? "bg-white/25" : "bg-gray-200 text-gray-600"
-          }`}>
-            1
-          </span>
-          Agregar productos
-        </button>
-        <div className="mx-1 h-8 w-px bg-gray-200" aria-hidden />
-        <button
-          type="button"
-          onClick={() => cart.length > 0 && setStep(2)}
-          disabled={cart.length === 0}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            step === 2
-              ? "bg-emerald-600 text-white shadow-sm"
-              : cart.length > 0
-                ? "text-gray-600 hover:bg-gray-50"
-                : "text-gray-400"
-          }`}
-        >
-          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-            step === 2 ? "bg-white/25" : "bg-gray-200 text-gray-600"
-          }`}>
-            2
-          </span>
-          Completar pago
+          {submitting ? "Procesando..." : "Registrar venta"}
         </button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Paso 1: Agregar productos */}
-        <div className={`rounded-lg border border-gray-200 bg-white p-6 shadow-sm ${step === 2 ? "hidden lg:block" : ""}`}>
-          <h3 className="mb-4 font-medium text-gray-900">Paso 1: Productos</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm text-gray-600">Ubicación</label>
-              <SearchableSelect
-                options={locations.map((l) => ({ value: l.id, label: l.name }))}
-                value={locationId}
-                onChange={setLocationId}
-                placeholder="Seleccionar ubicación..."
-                allowClear={false}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-gray-600">Cliente (opcional)</label>
-              <SearchableSelect
-                options={[
-                  { value: "", label: "Sin cliente" },
-                  ...customers.map((c) => ({ value: c.id, label: c.name })),
-                ]}
-                value={customerId}
-                onChange={setCustomerId}
-                placeholder="Buscar cliente..."
-              />
-            </div>
+      <Modal
+        isOpen={showAddProductModal}
+        onClose={() => setShowAddProductModal(false)}
+        title="Agregar producto"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm text-gray-600">Ubicación</label>
+            <SearchableSelect
+              options={locations.map((l) => ({ value: l.id, label: l.name }))}
+              value={locationId}
+              onChange={setLocationId}
+              placeholder="Seleccionar ubicación..."
+              allowClear={false}
+            />
           </div>
 
-          <h3 className="mb-4 mt-6 font-medium text-gray-900">Agregar producto</h3>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <SearchableSelect
-                options={productOptions}
-                value={selectedProductId}
-                onChange={setSelectedProductId}
-                onInputChange={setProductSearchTerm}
-                placeholder="Buscar producto..."
-                noOptionsMessage={(inputValue) => {
-                  const trimmed = inputValue.trim();
-                  if (trimmed.length < 3) {
-                    return "Escribe al menos 3 letras para buscar productos";
-                  }
-                  return loadingProducts
-                    ? "Buscando productos..."
-                    : `Sin resultados para "${trimmed}"`;
-                }}
-              />
-            </div>
+          <div>
+            <label className="mb-1 block text-sm text-gray-600">Cliente (opcional)</label>
+            <SearchableSelect
+              options={[
+                { value: "", label: "Sin cliente" },
+                ...customers.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+              value={customerId}
+              onChange={setCustomerId}
+              onInputChange={setCustomerSearchTerm}
+              placeholder="Buscar cliente..."
+              noOptionsMessage={(inputValue) => {
+                const trimmed = inputValue.trim();
+                if (trimmed.length < 3) {
+                  return "Escribe al menos 3 letras para buscar clientes";
+                }
+                return loadingCustomers
+                  ? "Buscando clientes..."
+                  : `Sin resultados para "${trimmed}"`;
+              }}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm text-gray-600">Producto</label>
+            <SearchableSelect
+              options={productOptions}
+              value={selectedProductId}
+              onChange={setSelectedProductId}
+              onInputChange={setProductSearchTerm}
+              placeholder="Buscar producto..."
+              noOptionsMessage={(inputValue) => {
+                const trimmed = inputValue.trim();
+                if (trimmed.length < 3) {
+                  return "Escribe al menos 3 letras para buscar productos";
+                }
+                return loadingProducts
+                  ? "Buscando productos..."
+                  : `Sin resultados para "${trimmed}"`;
+              }}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm text-gray-600">Cantidad</label>
             <input
               type="number"
-              min="0.01"
-              step="0.01"
+              min="1"
+              step="1"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className="w-20 rounded-lg border border-gray-300 px-3 py-2 text-center text-sm"
+              onChange={(e) => handleQuantityChange(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-sm"
               placeholder="Cant."
             />
+            <p className="mt-1 text-xs text-gray-500">
+              {allowDecimalQty
+                ? "Este producto permite decimales (máximo 2). Las flechas suben/bajan en enteros."
+                : "Este producto solo permite cantidades enteras."}
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowAddProductModal(false)}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
             <button
               type="button"
               onClick={addToCart}
@@ -337,220 +486,8 @@ export function NewSalePage() {
               Agregar
             </button>
           </div>
-
-          {step === 1 && (
-            <div className="mt-6 border-t border-gray-200 pt-6 lg:hidden">
-              <h3 className="mb-4 font-medium text-gray-900">Carrito</h3>
-              {cart.length === 0 ? (
-                <p className="py-6 text-center text-gray-500">No hay productos en el carrito</p>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    {cart.map((item) => (
-                      <div
-                        key={item.productId}
-                        className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2"
-                      >
-                        <div>
-                          <span className="font-medium text-gray-900">{item.productName}</span>
-                          <span className="ml-2 text-sm text-gray-500">
-                            {item.quantity} x L{item.unitPrice} = L{item.total.toFixed(2)}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeFromCart(item.productId)}
-                          className="rounded p-1 text-red-500 hover:bg-red-50"
-                          title="Quitar"
-                        >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-4 space-y-2 border-t border-gray-200 pt-4">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Subtotal</span>
-                      <span>L{subtotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">Descuento</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={discount}
-                        onChange={(e) => setDiscount(e.target.value)}
-                        className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
-                      />
-                    </div>
-                    <div className="flex justify-between font-medium">
-                      <span>Total</span>
-                      <span>L{total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setStep(2)}
-                    className="mt-4 w-full rounded-lg bg-emerald-600 py-3 font-medium text-white hover:bg-emerald-500"
-                  >
-                    Continuar al pago →
-                  </button>
-                </>
-              )}
-            </div>
-          )}
         </div>
-
-        {/* Carrito + Paso 2 */}
-        <div className={`rounded-lg border border-gray-200 bg-white p-6 shadow-sm ${step === 1 ? "hidden lg:block" : ""}`}>
-          <h3 className="mb-4 font-medium text-gray-900">
-            {step === 1 ? "Carrito" : "Paso 2: Pago"}
-          </h3>
-
-          {step === 1 ? (
-            <>
-              {cart.length === 0 ? (
-                <p className="py-8 text-center text-gray-500">No hay productos en el carrito</p>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    {cart.map((item) => (
-                      <div
-                        key={item.productId}
-                        className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2"
-                      >
-                        <div>
-                          <span className="font-medium text-gray-900">{item.productName}</span>
-                          <span className="ml-2 text-sm text-gray-500">
-                            {item.quantity} x L{item.unitPrice} = L{item.total.toFixed(2)}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeFromCart(item.productId)}
-                          className="rounded p-1 text-red-500 hover:bg-red-50"
-                          title="Quitar"
-                        >
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-6 space-y-2 border-t border-gray-200 pt-4">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Subtotal</span>
-                      <span>L{subtotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">Descuento</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={discount}
-                        onChange={(e) => setDiscount(e.target.value)}
-                        className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
-                      />
-                    </div>
-                    <div className="flex justify-between font-medium">
-                      <span>Total</span>
-                      <span>L{total.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setStep(2)}
-                    className="mt-6 w-full rounded-lg bg-emerald-600 py-3 font-medium text-white hover:bg-emerald-500"
-                  >
-                    Continuar al pago →
-                  </button>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="space-y-2">
-                {cart.map((item) => (
-                  <div
-                    key={item.productId}
-                    className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50/50 px-3 py-2"
-                  >
-                    <div>
-                      <span className="font-medium text-gray-900">{item.productName}</span>
-                      <span className="ml-2 text-sm text-gray-500">
-                        {item.quantity} x L{item.unitPrice} = L{item.total.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 space-y-2 border-t border-gray-200 pt-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span>L{subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Descuento</span>
-                  <span>L{discountVal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-medium">
-                  <span>Total</span>
-                  <span>L{total.toFixed(2)}</span>
-                </div>
-              </div>
-              <div className="mt-4">
-                <label className="mb-1 block text-sm text-gray-600">Monto a cobrar</label>
-                <input
-                  type="number"
-                  min="0"
-                  max={total}
-                  step="0.01"
-                  value={amountToCharge}
-                  onChange={(e) => setAmountToCharge(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
-                  placeholder="0"
-                />
-                <p className="mt-1 text-xs text-gray-500">Máximo: L{total.toFixed(2)}</p>
-              </div>
-              <div className="mt-4">
-                <label className="mb-1 block text-sm text-gray-600">Método de pago</label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as "CASH" | "TRANSFER" | "CARD")}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
-                >
-                  <option value="CASH">Efectivo</option>
-                  <option value="CARD">Tarjeta</option>
-                  <option value="TRANSFER">Transferencia</option>
-                </select>
-              </div>
-              {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-              <div className="mt-4 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="flex-1 rounded-lg border border-gray-300 py-3 font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  ← Volver
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={!canSubmit || submitting}
-                  className="flex-1 rounded-lg bg-emerald-600 py-3 font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-                >
-                  {submitting ? "Procesando..." : "Registrar venta"}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      </Modal>
 
       {invoiceSale && (
         <InvoiceModal
