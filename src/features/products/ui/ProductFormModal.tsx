@@ -114,7 +114,7 @@ export function ProductFormModal({
   const [costPrice, setCostPrice] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [trackStock, setTrackStock] = useState(true);
-  const [allowDecimalInventory, setAllowDecimalInventory] = useState(true);
+  const [allowDecimalInventory, setAllowDecimalInventory] = useState(false);
   const [expiresAtYmd, setExpiresAtYmd] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -157,7 +157,7 @@ export function ProductFormModal({
       setCostPrice("");
       setSalePrice("");
       setTrackStock(true);
-      setAllowDecimalInventory(true);
+      setAllowDecimalInventory(false);
       setExpiresAtYmd("");
       setImageFile(null);
       setImagePreview(null);
