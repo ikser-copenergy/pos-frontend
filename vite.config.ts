@@ -3,9 +3,11 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-/** Host público EC2 (preview / dev tras proxy de dominio amazonaws). */
+/** Hosts permitidos para preview / dev (EC2 + dominio público). */
 const allowedHosts = [
   "ec2-107-20-102-87.compute-1.amazonaws.com",
+  "vendoyaa.com",
+  "www.vendoyaa.com",
 ] as const;
 
 /** Deriva el origin (http://host:port) a partir de VITE_API_URL (que termina en /api). */
